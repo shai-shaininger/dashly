@@ -23,3 +23,4 @@ docker run --rm -p 8050:8050 -v $PWD:/code --name dashly-server dash-images pyth
 #gui frontend
 firefox 127.0.0.1:8050
 ```
+![Screenshot](screenshot.png)
