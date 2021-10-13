@@ -193,11 +193,14 @@ app.layout = html.Div([
 
 @app.callback(
     Output('vlines_checklist', 'options'), 
+    Output('vlines_checklist', 'value'), 
     Input('modal4_vlineAddInput', 'value'),
     Input('modal4_vlineDelInput', 'value'),
+    Input('main-graph', 'clickData'),
     State('vlines_checklist', 'options'),
+    State('vlines_checklist', 'value'),
     )
-def vlines_list(addval,delval,listopt):
+def vlines_list(addval,delval,gclick_data,listopt,listval):
     print ('vlines_list')
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -205,10 +208,17 @@ def vlines_list(addval,delval,listopt):
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     if button_id == 'modal4_vlineAddInput':
         listopt.append({'label': addval, 'value': addval})
-        return listopt
+        listval.append(addval)
+        return listopt,listval
     elif button_id == 'modal4_vlineDelInput':
         listopt.remove({'label': delval, 'value': delval})
-        return listopt
+        listval.remove(delval)
+        return listopt,listval
+    else:
+        pointx=gclick_data['points'][0]['x']
+        listopt.append({'label': pointx, 'value': pointx})
+        listval.append(pointx)
+        return listopt,listval
     raise PreventUpdate
 
 @app.callback(
