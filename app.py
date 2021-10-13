@@ -1,6 +1,6 @@
 #!/usr/bin/python3
+from mmap import ACCESS_DEFAULT
 import dash
-# import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_html_components as html
@@ -13,8 +13,6 @@ import json
 import base64
 import io
 
-
-# df = pd.read_csv('https://gist.githubusercontent.com/chriddyp/c78bf172206ce24f77d6363a2d754b59/raw/c353e8ef842413cae56ae3920b8fd78468aa4cb2/usa-agricultural-exports-2011.csv')
 df = None
 
 CONTENT_STYLE = {
@@ -22,14 +20,13 @@ CONTENT_STYLE = {
     "margin-right": "2rem",
     "padding": "2rem 1rem",
     'height': '90vh',
-    # 'width': '100vh',
+    # 'width': '100vw',
 }
 
 def generate_linegraph(dataframe=0, max_rows=100):
     return dcc.Graph(
         id='main-graph',
         figure={},
-        # figure=px.line(dataframe, x = df.index, y = ['beef','corn'], title='Apple Share Prices over time (2014)'),
         style=CONTENT_STYLE
     )
 
@@ -45,7 +42,6 @@ def generate_table(dataframe, max_rows=10):
         ])
     ])
 
-
 def load_preset_file(filename='presets.json'):
     preset_opts=[]
     preset_filelist=[]
@@ -56,7 +52,7 @@ def load_preset_file(filename='presets.json'):
             "label": val["label"],
             "value": idx
         })
-        preset_filelist[idx]['value']=idx
+        preset_filelist[idx]['value']=idx #preset index
     return preset_filelist, preset_opts
 
 def generate_preset_dropdown():
@@ -81,7 +77,8 @@ def generate_checklist():
         dcc.Checklist(
             options=[],
             value=[],
-            id="checklist-input"
+            id="checklist-input",
+            labelStyle={"display":"block"}
         )
     ], style={"height": "60vh", "overflow": "scroll"})
 
@@ -104,15 +101,14 @@ def generate_leftpane(dataframe=0, max_rows=100):
         html.Button('remove fields', id='btn_fields_remove', n_clicks=0, className="button"),
         html.Button('add field', id='btn_fields_add', n_clicks=0, className="button"),
         html.Button('edit vline', id='btn_vline_edit', n_clicks=0, className="button"),
+        html.Button('legend', id='btn_legend', n_clicks=0, className="button"),
         html.Br(),html.Br(),
         html.Button('preset Save', id='btn_preset_save', n_clicks=0, className="button-primary"),
         ])
 
-# external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-# app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-app = dash.Dash(__name__,external_stylesheets=[dbc.themes.BOOTSTRAP]) # load all asset dir files (*.js , *.css)
+app = dash.Dash(__name__) # load all asset dir files (*.js , *.css)
 app.layout = html.Div([
-    dcc.Location(id='url', refresh=False),
+    html.Button('sidebar', id='sidebar-toggle', n_clicks=0, style={"float":"left", "margin-right": "10px"}),
     dcc.ConfirmDialogProvider(children=html.Button('Remove',style={"float":"left"}),id='presets-remove-btn',
         message='Are you sure you want to delete preset?',),
     html.Button('Add', id='presets-add-btn', style={"float":"left"}),
@@ -129,7 +125,9 @@ app.layout = html.Div([
                     dcc.Checklist(
                         options=[],
                         value=[],
-                        id="modal1_checklist")], style={"height": "60vh", "overflow": "scroll"})),
+                        id="modal1_checklist",
+                        style={"height": "60vh", "overflow": "scroll"},
+                        labelStyle={"display":"block"})])),
             dbc.ModalFooter(
                 dbc.Button(
                     "Delete", id="modal1-delete-btn", className="ml-auto", n_clicks=0
@@ -166,7 +164,8 @@ app.layout = html.Div([
                 options=[],
                 value=[],
                 id='vlines_checklist',
-                style={"height":"300px","overflow": "scroll"}
+                style={"height":"300px","overflow": "scroll"},
+                labelStyle={"display":"block"}
                 ),
                 dcc.Input(id="modal4_vlineAddInput", type='text',placeholder="new vline",debounce=True),
                 dcc.Input(id="modal4_vlineDelInput", type='text',placeholder="del vline",debounce=True),
@@ -184,10 +183,8 @@ app.layout = html.Div([
     html.Div([
         html.Div([
             generate_leftpane()
-        ], className="three columns"),
-
+        ],id="side-panel", className="three columns"),
         html.Div([
-            # html.H4('High School in Israel', style={'textAlign':'center'}),
             generate_linegraph(),
         ], id="page-content", style={"backgroundColor":"white"}, className="nine columns"),
     ]),
@@ -201,6 +198,7 @@ app.layout = html.Div([
     State('vlines_checklist', 'options'),
     )
 def vlines_list(addval,delval,listopt):
+    print ('vlines_list')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -218,6 +216,7 @@ def vlines_list(addval,delval,listopt):
     Input('btn_vline_edit', 'n_clicks')
     )
 def btn_fields_remove_press(n_clicks):
+    print ('btn_fields_remove_press')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -231,20 +230,20 @@ def btn_fields_remove_press(n_clicks):
     Input('btn_fields_add', 'n_clicks')
     )
 def btn_fields_remove_press(n_clicks):
+    print ('btn_fields_remove_press')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
     if button_id == 'btn_fields_add':
         return True
-    # elif button_id == 'modal1-delete-btn':
-    #     return False,[]
     raise PreventUpdate
 
 @app.callback(
     Output('modal1_checklist', 'options'), 
     Input('checklist-input', 'options'))
 def modal1_write_checklist(options):
+    print ('modal1_write_checklist')
     return options
 
 @app.callback(
@@ -253,6 +252,7 @@ def modal1_write_checklist(options):
     Input('btn_fields_remove', 'n_clicks'),
     Input('modal1-delete-btn', 'n_clicks'))
 def btn_fields_remove_press(n_clicks,modal1closeclicks):
+    print ('btn_fields_remove_press')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -264,19 +264,35 @@ def btn_fields_remove_press(n_clicks,modal1closeclicks):
     else:
         raise PreventUpdate
 
-
+@app.callback(
+    Output('side-panel', 'className'), 
+    Output('page-content', 'className'),
+    Input('sidebar-toggle', 'n_clicks'),
+    )
+def toggle_sidebar(n_clicks):
+    print ('toggle_sidebar')
+    if n_clicks%2==0:
+        return "three columns","nine columns"
+    else:
+        return "hidden columns","twelve columns"
+ 
 @app.callback(
     Output('main-graph', 'figure'), 
     Input('checklist-input', 'value'),
-    Input('vlines_checklist', 'value'))
-def update_figure(values,vlines):
+    Input('vlines_checklist', 'value'),
+    Input('btn_legend', 'n_clicks'),
+    )
+def update_figure(values,vlines,legend_counter):
+    print ('update_figure')
     global df
     if values == []:
         print ('return empty fig')
         return {}
-    print ('update_figure',values, len(values))
-    filtered_df = df.iloc[:, values]
+    filtered_df = df.loc[:, values]
+    # filtered_df = df.iloc[:, values]
     fig = px.line(filtered_df, x=filtered_df.index, y=list(filtered_df), markers=True)
+    is_legend = True if legend_counter%2==0 else False
+    fig.layout.update(showlegend=is_legend)
     for v in vlines:
         fig.add_vline(v, line_width=3, line_dash="dash", line_color="green")
     # df.arm[df.arm.diff() != 0].index[0]
@@ -318,6 +334,7 @@ def save_preset(btn_preset_save_clicks,checklist_options,checklist_values,dropdo
     State('modal1_checklist', 'value'),
     )
 def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,values,modal1Value):
+    print ('update_checklist_input')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -327,7 +344,6 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
         opt = [x for x in options if x["value"] == value]
         if opt and opt[0] and opt[0] not in out:
             out.append(opt[0])
-        # print (out)
         return out,values
     elif button_id == 'dropdown_presets':
         preset_dict,preset_opts = load_preset_file()
@@ -355,6 +371,7 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
     State('dropdown_presets', 'value'),
 )
 def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, value, options, dropdown_presets_value):
+    print ('dropdown_presets_update')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -397,11 +414,9 @@ def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, val
               State('upload-data', 'filename'),
               State('upload-data', 'last_modified'))
 def open_file_function(contents, filename, date):
-    # print ('open_file_function',contents)
     print ('open_file_function')
     if not contents:
         raise PreventUpdate 
-    print (contents)
     if contents is not None:
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
@@ -410,7 +425,7 @@ def open_file_function(contents, filename, date):
             if 'csv' in filename:
                 # Assume that the user uploaded a CSV file
                 df = pd.read_csv(
-                    io.StringIO(decoded.decode('utf-8')))
+                    io.StringIO(decoded.decode('utf-8')),sep=",")
             elif 'xls' in filename:
                 # Assume that the user uploaded an excel file
                 df = pd.read_excel(io.BytesIO(decoded))
@@ -422,19 +437,9 @@ def open_file_function(contents, filename, date):
         for idx, val in enumerate(df.columns):
             dropdown_addfield_opts.append({
                 "label": val,
-                "value": idx
+                "value": val
             })
         return filename,dropdown_addfield_opts
-
-# @app.callback(dash.dependencies.Output('page-content', 'children'),
-#               [dash.dependencies.Input('url', 'pathname')])
-# def display_page(pathname):
-#     print ('display_page',pathname)
-
-#     if pathname == '/params':
-#         return generate_table(df)
-#     else:
-#         return generate_linegraph()
 
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0',port=8050, debug=True)
