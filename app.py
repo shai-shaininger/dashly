@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 from mmap import ACCESS_DEFAULT
+
+from numpy.lib.shape_base import split
 import dash
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
@@ -12,8 +14,12 @@ import plotly.express as px
 import json
 import base64
 import io
+# import uuid
 
-df = None
+# df = None
+session_counter = 0
+max_cache_sessions = 50 #this server_side cache aimed for 1-2 users , localserver , few tabs. on other cases data corruption can happen
+df_cache_per_user = [None]*max_cache_sessions
 
 CONTENT_STYLE = {
     "margin-left": "2rem",
@@ -188,7 +194,8 @@ app.layout = html.Div([
             generate_linegraph(),
         ], id="page-content", style={"backgroundColor":"white"}, className="nine columns"),
     ]),
-    html.Div(id="hidden_div", style={"display":"none"})
+    html.Div(id="hidden_div", style={"display":"none"}),
+    dcc.Store(id="userid_store")
 ])
 
 @app.callback(
@@ -291,15 +298,19 @@ def toggle_sidebar(n_clicks):
     Input('checklist-input', 'value'),
     Input('vlines_checklist', 'value'),
     Input('btn_legend', 'n_clicks'),
+    State('userid_store','data'),
+    State('upload-data-filelabel','children')
     )
-def update_figure(values,vlines,legend_counter):
+def update_figure(values,vlines,legend_counter,jsonuserid,filename):
     print ('update_figure')
-    global df
+    # global df
     if values == []:
         print ('return empty fig')
         return {}
-    filtered_df = df.loc[:, values]
-    # filtered_df = df.iloc[:, values]
+    userid=json.loads(jsonuserid)
+    filtered_df = df_cache_per_user[userid].loc[:, values]
+    # dff = pd.read_json(jsonuserid,orient='split')
+    # filtered_df = dff.loc[:, values]
     fig = px.line(filtered_df, x=filtered_df.index, y=list(filtered_df), markers=True)
     is_legend = True if legend_counter%2==0 else False
     fig.layout.update(showlegend=is_legend)
@@ -420,6 +431,7 @@ def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, val
 
 @app.callback(Output('upload-data-filelabel', 'children'),
               Output('dropdown_addfield','options'),
+              Output('userid_store','data'),
               Input('upload-data', 'contents'),
               State('upload-data', 'filename'),
               State('upload-data', 'last_modified'))
@@ -430,7 +442,7 @@ def open_file_function(contents, filename, date):
     if contents is not None:
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
-        global df
+        
         try:
             if 'csv' in filename:
                 # Assume that the user uploaded a CSV file
@@ -441,7 +453,7 @@ def open_file_function(contents, filename, date):
                 df = pd.read_excel(io.BytesIO(decoded))
         except Exception as e:
             print(e)
-            return "error",[]
+            return "error",[],{}
 
         dropdown_addfield_opts=[]
         for idx, val in enumerate(df.columns):
@@ -449,7 +461,13 @@ def open_file_function(contents, filename, date):
                 "label": val,
                 "value": val
             })
-        return filename,dropdown_addfield_opts
+        # userid=str(uuid.uuid4())
+        global session_counter
+        session_counter += 1
+        idx = session_counter%max_cache_sessions
+        df_cache_per_user[idx] = df
+        return filename,dropdown_addfield_opts,json.dumps(idx)
+        # return filename,dropdown_addfield_opts,df.to_json(date_format='iso',orient='split')
 
 if __name__ == '__main__':
     app.run_server(host='0.0.0.0',port=8050, debug=True)
