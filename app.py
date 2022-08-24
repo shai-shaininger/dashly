@@ -20,13 +20,15 @@ import io
 session_counter = 0
 max_cache_sessions = 50 #this server_side cache aimed for 1-2 users , localserver , few tabs. on other cases data corruption can happen
 df_cache_per_user = [None]*max_cache_sessions
+checklist_value = {"scaling": 2.0, "offset": 0.0}
+checklistMeta = {"value": checklist_value}
 
 CONTENT_STYLE = {
     "margin-left": "2rem",
     "margin-right": "2rem",
     "padding": "2rem 1rem",
     'height': '90vh',
-    # 'width': '100vw',
+   
 }
 
 def generate_linegraph(dataframe=0, max_rows=100):
@@ -78,15 +80,48 @@ def generate_addfield_dropdown():
         id="dropdown_addfield",
     )
 
+def generate_addfield_dropdown2():
+    return dcc.Dropdown(
+        options=[],
+        value='0',
+        multi=False,
+        id="dropdown_addfield2",
+    )
+
+
 def generate_checklist():
     return html.Div([
         dcc.Checklist(
             options=[],
             value=[],
+            #xa = {"scaile": 1.0, "offset": 0.0},
+            #ya = {"value": {"scaile": 1.0, "offset": 0.0}},
+            
             id="checklist-input",
             labelStyle={"display":"block"}
-        )
-    ], style={"height": "60vh", "overflow": "scroll"})
+
+        ),
+        ], style={"height": "30vh", "overflow": "scroll"})
+    
+
+def generate_AAAAA():
+    return html.Div([
+        html.Br(),
+    
+        generate_addfield_dropdown2(),
+
+            html.Div(
+            [
+                html.P("Scaling", style = {"display" : "inline", "width" : "10px", "margin" : "10px"}),
+                dbc.Input(id = "scaling", debounce=True, value="1.0", type="text", style = {"display" : "inline", "width" : "80px"}),
+                html.P(),
+                html.P("Offset", style = {"display" : "inline", "width" : "10px", "margin" : "14.8px"}),
+                dbc.Input(id = "offset", debounce=True, value="0.0", type="text", style = {"display" : "inline", "width" : "80px"})],
+    ),], style={"height": "30vh", "overflow": "scroll"})    
+
+        
+        
+    
 
 def generate_table(dataframe, max_rows=10):
     return html.Table([
@@ -104,6 +139,7 @@ def generate_leftpane(dataframe=0, max_rows=100):
     return html.Div([
         'Field checklist:',
         generate_checklist(),
+        generate_AAAAA(),
         html.Button('remove fields', id='btn_fields_remove', n_clicks=0, className="button"),
         html.Button('add field', id='btn_fields_add', n_clicks=0, className="button"),
         html.Button('edit vline', id='btn_vline_edit', n_clicks=0, className="button"),
@@ -162,6 +198,7 @@ app.layout = html.Div([
         id="modal3",
         is_open=False,
     ),
+     html.Div(id="hidden_div2", style={"display":"none"}),
     dbc.Modal(
         [
             dbc.ModalHeader("add VLines"),
@@ -185,6 +222,7 @@ app.layout = html.Div([
         id='confirm-diag1',
         message='Danger danger! Are you sure you want to continue?',
     ),
+    
 
     html.Div([
         html.Div([
@@ -195,11 +233,12 @@ app.layout = html.Div([
         ], id="page-content", style={"backgroundColor":"white"}, className="nine columns"),
     ]),
     html.Div(id="hidden_div", style={"display":"none"}),
-    dcc.Store(id="userid_store")
+    dcc.Store(id="userid_store"),
+    dcc.Store(id='store_metadata', data= {"value": {"scaling": 1.0, "offset": 0.0}}),
 ])
 
 @app.callback(
-    Output('vlines_checklist', 'options'), 
+    Output('vlines_checklist', 'options'),
     Output('vlines_checklist', 'value'), 
     Input('modal4_vlineAddInput', 'value'),
     Input('modal4_vlineDelInput', 'value'),
@@ -232,8 +271,8 @@ def vlines_list(addval,delval,gclick_data,listopt,listval):
     Output('modal4', 'is_open'), 
     Input('btn_vline_edit', 'n_clicks')
     )
-def btn_fields_remove_press(n_clicks):
-    print ('btn_fields_remove_press')
+def btn_vline_edit(n_clicks):
+    print ('btn_vline_edit')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -246,8 +285,8 @@ def btn_fields_remove_press(n_clicks):
     Output('modal2', 'is_open'), 
     Input('btn_fields_add', 'n_clicks')
     )
-def btn_fields_remove_press(n_clicks):
-    print ('btn_fields_remove_press')
+def btn_fields_add_press(n_clicks):
+    print ('btn_fields_add_press')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -268,6 +307,7 @@ def modal1_write_checklist(options):
     Output('modal1_checklist', 'value'),
     Input('btn_fields_remove', 'n_clicks'),
     Input('modal1-delete-btn', 'n_clicks'))
+
 def btn_fields_remove_press(n_clicks,modal1closeclicks):
     print ('btn_fields_remove_press')
     ctx = dash.callback_context
@@ -294,24 +334,33 @@ def toggle_sidebar(n_clicks):
         return "hidden columns","twelve columns"
  
 @app.callback(
-    Output('main-graph', 'figure'), 
+    Output('main-graph', 'figure'),
     Input('checklist-input', 'value'),
+   # Input('checklist-input', 'options'),
     Input('vlines_checklist', 'value'),
     Input('btn_legend', 'n_clicks'),
+    Input('store_metadata', 'data'),
+   # State('dropdown_addfield2', 'value'),
     State('userid_store','data'),
-    State('upload-data-filelabel','children')
+    # State('upload-data-filelabel','children'),
+
     )
-def update_figure(values,vlines,legend_counter,jsonuserid,filename):
+def update_figure(values, vlines, legend_counter,  meta_data, jsonuserid):
     print ('update_figure')
-    # global df
     if values == []:
         print ('return empty fig')
         return {}
     userid=json.loads(jsonuserid)
     filtered_df = df_cache_per_user[userid].loc[:, values]
-    # dff = pd.read_json(jsonuserid,orient='split')
-    # filtered_df = dff.loc[:, values]
-    fig = px.line(filtered_df, x=filtered_df.index, y=list(filtered_df), markers=True)
+    temp = filtered_df#add copy
+    checklist_value.clear()
+
+    for v in values:
+        if v in meta_data.keys():
+            temp[v] *= meta_data[v].get('scaling')
+            temp[v] += meta_data[v].get('offset')
+
+    fig = px.line(temp, x=temp.index, y=list(temp), markers=True)
     is_legend = True if legend_counter%2==0 else False
     fig.layout.update(showlegend=is_legend)
     for v in vlines:
@@ -322,7 +371,7 @@ def update_figure(values,vlines,legend_counter,jsonuserid,filename):
     return fig
 
 @app.callback(
-    Output('hidden_div', 'children'), 
+    Output('hidden_div2', 'children'), 
     Input('btn_preset_save', 'n_clicks'),
     State('checklist-input', 'options'),
     State('checklist-input', 'value'),
@@ -343,6 +392,72 @@ def save_preset(btn_preset_save_clicks,checklist_options,checklist_values,dropdo
         json.dump(preset_dict, f)
     raise PreventUpdate
 
+
+
+@app.callback(
+    
+    Output('store_metadata', 'data'),
+    Input('scaling', 'value'),
+    Input('offset', 'value'),
+    Input('checklist-input', 'options'),
+    State('dropdown_addfield2', 'value'),
+    State('store_metadata', 'data'),
+
+)
+def update_checklist_meta(scaling, offset, options, value, meta_data):
+    print("update_checklist_meta")
+    meta_data_list = list(meta_data.keys())
+    for v in options:
+        if v["value"] not in meta_data_list:
+            meta_data[v["value"]] = {"scaling": 1.0, "offset": 0.0}
+
+    for v in list(meta_data.keys()):
+        temp = {'label': v, 'value': v}
+        if temp not in options:
+            meta_data.pop(v)
+    if value in list(meta_data.keys()):
+        # print("offst: " +type(offset) + "scaling: " +  type(scaling))
+        if isfloat(offset) and isfloat(scaling):
+            meta_data[value] = {"scaling": float(scaling), "offset": float(offset)}
+
+    return meta_data
+
+def isfloat(num):#taken from https://www.programiz.com/python-programming/examples/check-string-number
+    try:
+        float(num)
+        return True
+    except ValueError:
+        return False
+@app.callback(
+    Output('scaling', 'value'),
+    Output('offset', 'value'),
+
+    Input('dropdown_addfield2', 'value'),
+    State('store_metadata', 'data')
+
+)
+def update_scaling_and_offset(value, meta_data):
+    if value in list(meta_data.keys()):
+        return str(float(meta_data[value]["scaling"])), str(float(meta_data[value]["offset"]))
+    else:
+        return "1.0", "0.0"
+
+
+##############
+@app.callback(
+    Output('dropdown_addfield2', 'options'),
+    Input('checklist-input', 'options'),
+    Input('dropdown_addfield2', 'value'),
+    Input('scaling', 'value'),
+    Input('offset', 'value')
+)
+
+def update_dropdown_addfield2(n_clicks, value, vScanling, vOffset):
+    checklist_value.clear()
+    checklist_value["scaling"] = vScanling
+    checklist_value["offset"] = vOffset
+    return n_clicks
+   
 @app.callback(
     Output('checklist-input', 'options'),
     Output('checklist-input', 'value'),
@@ -445,6 +560,7 @@ def open_file_function(contents, filename, date):
         
         try:
             if 'csv' in filename:
+                
                 # Assume that the user uploaded a CSV file
                 df = pd.read_csv(
                     io.StringIO(decoded.decode('utf-8')),sep=",")
