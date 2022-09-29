@@ -50,7 +50,8 @@ def generate_table(dataframe, max_rows=10):
         ])
     ])
 
-def load_preset_file(filename='presets.json'):
+def load_preset_file(preset, filename='presets.json'):
+    meta = dict()
     preset_opts=[]
     preset_filelist=[]
     with open(filename) as json_file:
@@ -60,8 +61,16 @@ def load_preset_file(filename='presets.json'):
             "label": val["label"],
             "value": idx
         })
+        if preset == val["value"]:
+            if "meta" not in val or len(val["meta"]) == 0:
+                for field in val["fields"]:
+                    meta[field["value"]] = {"scaling": 1.0, "offset": 0.0}
+            else:
+                for field in val["meta"].keys():
+                    meta[field] = {"scaling": val["meta"][field]["scaling"], "offset": val["meta"][field]["offset"]}
+            
         preset_filelist[idx]['value']=idx #preset index
-    return preset_filelist, preset_opts
+    return preset_filelist, preset_opts, meta
 
 def generate_preset_dropdown():
     return dcc.Dropdown(
@@ -80,22 +89,12 @@ def generate_addfield_dropdown():
         id="dropdown_addfield",
     )
 
-def generate_addfield_dropdown2():
-    return dcc.Dropdown(
-        options=[],
-        value='0',
-        multi=False,
-        id="dropdown_addfield2",
-    )
-
 
 def generate_checklist():
     return html.Div([
         dcc.Checklist(
             options=[],
             value=[],
-            #xa = {"scaile": 1.0, "offset": 0.0},
-            #ya = {"value": {"scaile": 1.0, "offset": 0.0}},
             
             id="checklist-input",
             labelStyle={"display":"block"}
@@ -104,12 +103,16 @@ def generate_checklist():
         ], style={"height": "30vh", "overflow": "scroll"})
     
 
-def generate_AAAAA():
+def generate_down_left_side():#need to thing about the name
     return html.Div([
         html.Br(),
     
-        generate_addfield_dropdown2(),
-
+       dcc.Dropdown(
+            options=[],
+            value='0',
+            multi=False,
+            id="dropdown_addfield2",
+        ),
             html.Div(
             [
                 html.P("Scaling", style = {"display" : "inline", "width" : "10px", "margin" : "10px"}),
@@ -139,7 +142,7 @@ def generate_leftpane(dataframe=0, max_rows=100):
     return html.Div([
         'Field checklist:',
         generate_checklist(),
-        generate_AAAAA(),
+        generate_down_left_side(),
         html.Button('remove fields', id='btn_fields_remove', n_clicks=0, className="button"),
         html.Button('add field', id='btn_fields_add', n_clicks=0, className="button"),
         html.Button('edit vline', id='btn_vline_edit', n_clicks=0, className="button"),
@@ -336,14 +339,10 @@ def toggle_sidebar(n_clicks):
 @app.callback(
     Output('main-graph', 'figure'),
     Input('checklist-input', 'value'),
-   # Input('checklist-input', 'options'),
     Input('vlines_checklist', 'value'),
     Input('btn_legend', 'n_clicks'),
     Input('store_metadata', 'data'),
-   # State('dropdown_addfield2', 'value'),
     State('userid_store','data'),
-    # State('upload-data-filelabel','children'),
-
     )
 def update_figure(values, vlines, legend_counter,  meta_data, jsonuserid):
     print ('update_figure')
@@ -376,17 +375,20 @@ def update_figure(values, vlines, legend_counter,  meta_data, jsonuserid):
     State('checklist-input', 'options'),
     State('checklist-input', 'value'),
     State('dropdown_presets', 'value'),
+    State('store_metadata', 'data'),
 )
-def save_preset(btn_preset_save_clicks,checklist_options,checklist_values,dropdown_presets_value):
+def save_preset(btn_preset_save_clicks,checklist_options,checklist_values,dropdown_presets_value, meta_data):
     print ('save_preset',btn_preset_save_clicks)
+
     if btn_preset_save_clicks == 0:
         raise PreventUpdate
     if dropdown_presets_value==0:
         raise PreventUpdate #keep first preset always empty
 
-    preset_dict,preset_opts = load_preset_file()
+    preset_dict,preset_opts,meta = load_preset_file(dropdown_presets_value)
     preset_dict[dropdown_presets_value]['fields']=checklist_options
     preset_dict[dropdown_presets_value]['values']=checklist_values
+    preset_dict[dropdown_presets_value]['meta']=meta_data
 
     with open('presets.json', 'w') as f:
         json.dump(preset_dict, f)
@@ -400,23 +402,30 @@ def save_preset(btn_preset_save_clicks,checklist_options,checklist_values,dropdo
     Input('scaling', 'value'),
     Input('offset', 'value'),
     Input('checklist-input', 'options'),
+    Input('dropdown_presets', 'value'),
     State('dropdown_addfield2', 'value'),
+    
     State('store_metadata', 'data'),
 
 )
-def update_checklist_meta(scaling, offset, options, value, meta_data):
+def update_checklist_meta(scaling, offset, options, dropdown_presets_value, value, meta_data):
     print("update_checklist_meta")
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if trigger_id == 'checklist-input' or trigger_id == 'dropdown_presets':
+        a,b, meta_data = load_preset_file(dropdown_presets_value)
     meta_data_list = list(meta_data.keys())
-    for v in options:
+    for v in options: #add values to metadata with default scling and offset
         if v["value"] not in meta_data_list:
             meta_data[v["value"]] = {"scaling": 1.0, "offset": 0.0}
 
-    for v in list(meta_data.keys()):
+    for v in list(meta_data.keys()):#remove values from metadata
         temp = {'label': v, 'value': v}
         if temp not in options:
             meta_data.pop(v)
-    if value in list(meta_data.keys()):
-        # print("offst: " +type(offset) + "scaling: " +  type(scaling))
+    if value in list(meta_data.keys()):#add values to metadata with input scling and offset
         if isfloat(offset) and isfloat(scaling):
             meta_data[value] = {"scaling": float(scaling), "offset": float(offset)}
 
@@ -468,8 +477,10 @@ def update_dropdown_addfield2(n_clicks, value, vScanling, vOffset):
     State('checklist-input', 'options'),
     State('checklist-input', 'value'),
     State('modal1_checklist', 'value'),
-    )
-def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,values,modal1Value):
+    State('dropdown_presets', 'value'),
+    State('store_metadata', 'data'),
+)
+def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,values,modal1Value, dropdown_presets_value, meta):
     print ('update_checklist_input')
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -482,7 +493,7 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
             out.append(opt[0])
         return out,values
     elif button_id == 'dropdown_presets':
-        preset_dict,preset_opts = load_preset_file()
+        preset_dict,preset_opts,meta = load_preset_file(dropdown_presets_value)
         if (preset_dict[preset_value]['fields']):
             # print (preset_dict[preset_value]['fields'])
             return preset_dict[preset_value]['fields'],preset_dict[preset_value]['values']
@@ -498,6 +509,7 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
     Output('dropdown_presets', 'options'),
     Output('modal3', 'is_open'), 
     Output('modal3_presetAddInput', 'value'),
+    
     Input('modal3_presetAddInput', 'n_submit'),
     Input('presets-remove-btn', 'submit_n_clicks'),
     Input('upload-data-btn', 'n_clicks'),
@@ -505,8 +517,9 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
     State('modal3_presetAddInput', 'value'),
     State('dropdown_presets', 'options'),
     State('dropdown_presets', 'value'),
+    State('store_metadata', 'data'),
 )
-def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, value, options, dropdown_presets_value):
+def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, value, options, dropdown_presets_value, meta):
     print ('dropdown_presets_update')
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -516,7 +529,7 @@ def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, val
         if value == None or value=="":
             raise PreventUpdate      
         print ('modal3_presetAddInput: adding value=',value)
-        preset_dict,preset_opts = load_preset_file()
+        preset_dict,preset_opts,meta = load_preset_file(dropdown_presets_value)
         preset_dict.append({'label':value, 'value':len(preset_dict), 'fields':[], 'values':[]})
         preset_opts.append({'label': value, 'value': len(preset_opts)})
         with open('presets.json', 'w') as f:
@@ -526,7 +539,7 @@ def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, val
         print ('presets-remove-btn: remove value=',dropdown_presets_value)
         if dropdown_presets_value == 0:
             raise PreventUpdate
-        preset_dict,preset_opts = load_preset_file()
+        preset_dict,preset_opts,meta = load_preset_file(dropdown_presets_value)
         del preset_dict[dropdown_presets_value]
         del preset_opts[dropdown_presets_value]
         for idx,val in enumerate(preset_dict):
@@ -538,7 +551,7 @@ def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, val
         return preset_opts,no_update,no_update
     elif button_id == 'upload-data-btn':
         print ('upload-data-btn')
-        preset_dict,preset_opts = load_preset_file()
+        preset_dict,preset_opts,meta = load_preset_file(dropdown_presets_value)
         return preset_opts,no_update,no_update
     elif button_id == 'presets-add-btn':
         return no_update,True,''
