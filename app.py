@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+from cmath import log
 from mmap import ACCESS_DEFAULT
 
 from numpy.lib.shape_base import split
@@ -14,6 +15,7 @@ import plotly.express as px
 import json
 import base64
 import io
+import struct
 # import uuid
 
 # df = None
@@ -557,6 +559,29 @@ def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, val
         return no_update,True,''
     raise PreventUpdate
 
+# opens binary of floats with ascii csv header in the head.eg: field1,field2,field3,0floatArrayOf100Rows[3*100]
+def binary2panda(bytes_io: io.BytesIO):
+    content = bytes_io.read()
+    header, data = content.split(b"\x00",maxsplit=1)
+    
+    # Split header into field names
+    fields = header.decode().split(",")
+    fields.pop() # remove last element from the list which is ",NULL"
+
+    #slice data to complete rows
+    row_bytes_len = len(fields)*4
+    print ("slicing binary file to complete rows ",len(data)%row_bytes_len," bytes")
+    data = data[:-(len(data)%row_bytes_len)]
+
+    # Calculate number of rows and reshape data into a 2D array
+    num_rows = len(data) // (len(fields) * 4)
+    print ("number of rows: ",num_rows)
+    data = struct.unpack("f"*num_rows*len(fields), data)
+    data = [data[i:i+len(fields)] for i in range(0, len(data), len(fields))]
+
+    # Convert data into a Pandas DataFrame
+    return pd.DataFrame(data, columns=fields)
+
 @app.callback(Output('upload-data-filelabel', 'children'),
               Output('dropdown_addfield','options'),
               Output('userid_store','data'),
@@ -573,13 +598,14 @@ def open_file_function(contents, filename, date):
         
         try:
             if 'csv' in filename:
-                
                 # Assume that the user uploaded a CSV file
                 df = pd.read_csv(
                     io.StringIO(decoded.decode('utf-8')),sep=",")
             elif 'xls' in filename:
                 # Assume that the user uploaded an excel file
                 df = pd.read_excel(io.BytesIO(decoded))
+            elif '.bin' in filename:
+                df = binary2panda(bytes_io=io.BytesIO(decoded))
         except Exception as e:
             print(e)
             return "error",[],{}
