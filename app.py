@@ -41,6 +41,13 @@ CONTENT_STYLE2 = {
     'height': '90vh',
    
 }
+CONTENT_STYLE3 = {
+    "margin-left": "1rem",
+    "margin-right": "0rem",
+    "padding": "0rem 0rem",
+    'height': '90vh',
+    'background-color':"#EEE",
+}
 
 
 def generate_table(dataframe, max_rows=10):
@@ -250,7 +257,7 @@ app.layout = html.Div([
             html.Button('add field', id='btn_fields_add4', n_clicks=0, className="button"),
             dcc.Dropdown(options=[{'label': 'empty preset', 'value': 0}],
             value='0',multi=False,id="dropdown_presets4"),
-        ],id="side-panel3", className="two columns",style=CONTENT_STYLE2),
+        ],id="side-panel3", className="two columns",style=CONTENT_STYLE3),
 
         html.Div([dcc.Graph(id='main-graph4',figure={},style=CONTENT_STYLE2)], id="page-content4", style=CONTENT_STYLE2, className="five columns"),        
     ]),
