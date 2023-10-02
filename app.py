@@ -34,13 +34,14 @@ CONTENT_STYLE = {
     'height': '90vh',
    
 }
+CONTENT_STYLE2 = {
+    "margin-left": "0rem",
+    "margin-right": "0rem",
+    "padding": "0rem 0rem",
+    'height': '90vh',
+   
+}
 
-def generate_linegraph(dataframe=0, max_rows=100):
-    return dcc.Graph(
-        id='main-graph',
-        figure={},
-        style=CONTENT_STYLE
-    )
 
 def generate_table(dataframe, max_rows=10):
     return html.Table([
@@ -107,7 +108,7 @@ def generate_checklist():
         ], style={"height": "30vh", "overflow": "scroll"})
     
 
-def generate_down_left_side():#need to thing about the name
+def generate_down_left_side():#need to think about the name
     return html.Div([
         html.Br(),
     
@@ -229,6 +230,31 @@ app.layout = html.Div([
         html.Div([dcc.Graph(id='main-graph',figure={},style=CONTENT_STYLE),
         ], id="page-content", style={"backgroundColor":"white"}, className="six columns"),
     ]),
+    html.Div([
+        html.Div([dcc.Graph(id='main-graph3',figure={},style=CONTENT_STYLE2)], id="page-content3", style=CONTENT_STYLE2, className="five columns"),
+
+        html.Div([
+            html.Div([dcc.Checklist(
+            options=[],
+            value=[],id="checklist-input3",labelStyle={"display":"block"}),
+            ], style={"height": "30vh", "overflow": "scroll"}),
+            html.Button('add field', id='btn_fields_add3', n_clicks=0, className="button"),
+            dcc.Dropdown(options=[{'label': 'empty preset', 'value': 0}],
+            value='0',multi=False,id="dropdown_presets3"),
+            html.Br(),html.Br(),
+
+            html.Div([dcc.Checklist(
+            options=[],
+            value=[],id="checklist-input4",labelStyle={"display":"block"}),
+            ], style={"height": "30vh", "overflow": "scroll"}),
+            html.Button('add field', id='btn_fields_add4', n_clicks=0, className="button"),
+            dcc.Dropdown(options=[{'label': 'empty preset', 'value': 0}],
+            value='0',multi=False,id="dropdown_presets4"),
+        ],id="side-panel3", className="two columns",style=CONTENT_STYLE2),
+
+        html.Div([dcc.Graph(id='main-graph4',figure={},style=CONTENT_STYLE2)], id="page-content4", style=CONTENT_STYLE2, className="five columns"),        
+    ]),
+
     html.Div(id="hidden_div", style={"display":"none"}),
     dcc.Store(id="userid_store"),
     dcc.Store(id='store_metadata', data= {"value": {"scaling": 1.0, "offset": 0.0}}),
@@ -354,36 +380,42 @@ def set_interval_stream(n_clicks):
 
 @app.callback(
     Output('main-graph', 'figure'),
+    Output('main-graph3', 'figure'),
+    Output('main-graph4', 'figure'),
     Input('checklist-input', 'value'),
     Input('vlines_checklist', 'value'),
     Input('btn_legend', 'n_clicks'),
     Input('store_metadata', 'data'),
     Input('interval_stream', 'n_intervals'),
+    Input('checklist-input3', 'value'),
+    Input('checklist-input4', 'value'),
     State('userid_store','data'),
     State('interval_stream', 'disabled'),
     )
-def update_figure(values, vlines, legend_counter,  meta_data,n_intervals, jsonuserid,interval_stream_disabled):
+def update_figure(values, vlines, legend_counter,  meta_data,n_intervals,checklist_input3_value,checklist_input4_value, jsonuserid,interval_stream_disabled):
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    if button_id == 'interval_stream' and values:
-        filtered_data = []
-        for m in list(recent_live_messages): #atomic opration to copy list to prevent deque mutate while iteration
-            d = {'timetag': m['timetag']}
-            # d += {m[value] for value in values}
-            for field in values:
-                d[field] = m[field]
-            filtered_data.append(d)
-        # filtered_data = [item[key] if key in item else None for item in data]
-        df = pd.DataFrame(filtered_data)
-        fig = px.line(df, x='timetag', y=list(df), markers=True)
-        return fig
-
+    if button_id == 'interval_stream':
+        fig={};fig3={};fig4={}
+        df = pd.DataFrame(recent_live_messages)
+        if values:
+            values.append("timetag")
+            fig = px.line(df, x='timetag', y=list(values), markers=True)
+        if checklist_input3_value:
+            checklist_input3_value.append("timetag")
+            fig3 = px.line(df, x="timetag", y=list(checklist_input3_value), markers=True)
+            fig3.layout.update(showlegend=False,margin=dict(l=0, r=0, t=0, b=0))
+        if checklist_input4_value:
+            checklist_input4_value.append("timetag")
+            fig4 = px.line(df, x="timetag", y=list(checklist_input4_value), markers=True)
+            fig4.layout.update(showlegend=False,margin=dict(l=0, r=0, t=0, b=0))
+        return fig,fig3,fig4
 
     if values == [] or not interval_stream_disabled:
         print ('return empty fig')
-        return {}
+        return {},{},{}
     print('update figure')
     userid=json.loads(jsonuserid)
     filtered_df = df_cache_per_user[userid].loc[:, values]
@@ -400,10 +432,7 @@ def update_figure(values, vlines, legend_counter,  meta_data,n_intervals, jsonus
     fig.layout.update(showlegend=is_legend)
     for v in vlines:
         fig.add_vline(v, line_width=3, line_dash="dash", line_color="green")
-    # df.arm[df.arm.diff() != 0].index[0]
-    # print (df.arm[df.arm.diff() != 0].iloc[1])
-    # fig.add_vline(x=df[df.arm > 0].index[0], line_width=3, line_dash="dash", line_color="green")
-    return fig
+    return fig,{},{}
 
 @app.callback(
     Output('hidden_div2', 'children'), 
@@ -540,6 +569,60 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
         return opt,vals
     else:
         raise PreventUpdate
+
+@app.callback(
+    Output('dropdown_presets3', 'options'),
+    Input('dropdown_presets', 'options'),
+)
+def update_dropdown_presets3(dropdown_presets_options):
+    print ('update_dropdown_presets3')
+    return dropdown_presets_options
+
+@app.callback(
+    Output('dropdown_presets4', 'options'),
+    Input('dropdown_presets', 'options'),
+)
+def update_dropdown_presets4(dropdown_presets_options):
+    print ('update_dropdown_presets4')
+    return dropdown_presets_options
+
+@app.callback(
+    Output('checklist-input3', 'options'),
+    Output('checklist-input3', 'value'),
+    Input('dropdown_presets3', 'value'),
+    # State('dropdown_addfield', 'options'),
+)
+def update_checklist_input3(dropdown_presets3_value):
+    print ('update_checklist_input3')
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if button_id == 'dropdown_presets3':
+        preset_dict,preset_opts,meta = load_preset_file(dropdown_presets3_value)
+        if (preset_dict[dropdown_presets3_value]['fields']):
+            # print (preset_dict[preset_value]['fields'])
+            return preset_dict[dropdown_presets3_value]['fields'],preset_dict[dropdown_presets3_value]['values']
+        return preset_dict[0]['fields'],[]
+
+@app.callback(
+    Output('checklist-input4', 'options'),
+    Output('checklist-input4', 'value'),
+    Input('dropdown_presets4', 'value'),
+    # State('dropdown_addfield', 'options'),
+)
+def update_checklist_input4(dropdown_presets4_value):
+    print ('update_checklist_input4')
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if button_id == 'dropdown_presets4':
+        preset_dict,preset_opts,meta = load_preset_file(dropdown_presets4_value)
+        if (preset_dict[dropdown_presets4_value]['fields']):
+            # print (preset_dict[preset_value]['fields'])
+            return preset_dict[dropdown_presets4_value]['fields'],preset_dict[dropdown_presets4_value]['values']
+        return preset_dict[0]['fields'],[]
 
 @app.callback(
     Output('dropdown_presets', 'options'),
@@ -727,7 +810,7 @@ def thread_loop2(arg):
 
 
 if __name__ == '__main__':
-    t1 = threading.Thread(target=thread_loop2, args=(1,))
+    t1 = threading.Thread(target=thread_loop, args=(1,))
     # t1.daemon = True
     t1.start()
     app.run_server(host='127.0.0.1',port=8050, debug=False)
