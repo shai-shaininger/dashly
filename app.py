@@ -26,6 +26,7 @@ max_cache_sessions = 50 #this server_side cache aimed for 1-2 users , localserve
 df_cache_per_user = [None]*max_cache_sessions
 checklist_value = {"scaling": 2.0, "offset": 0.0}
 checklistMeta = {"value": checklist_value}
+add_field_btn_index = 1
 
 CONTENT_STYLE = {
     "margin-left": "2rem",
@@ -313,17 +314,29 @@ def btn_vline_edit(n_clicks):
 
 @app.callback(
     Output('modal2', 'is_open'), 
-    Input('btn_fields_add', 'n_clicks')
+    Input('btn_fields_add', 'n_clicks'),
+    Input('btn_fields_add3', 'n_clicks'),
+    Input('btn_fields_add4', 'n_clicks')
     )
-def btn_fields_add_press(n_clicks):
+def btn_fields_add_press(n_clicks,btn_fields_add3_click,btn_fields_add4_click):
     print ('btn_fields_add_press')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    global add_field_btn_index
     if button_id == 'btn_fields_add':
+        add_field_btn_index = 1
+        return True
+    elif button_id == 'btn_fields_add3':
+        add_field_btn_index = 3
+        return True
+    elif button_id == 'btn_fields_add4':
+        add_field_btn_index = 4
         return True
     raise PreventUpdate
+
+
 
 @app.callback(
     Output('modal1_checklist', 'options'), 
@@ -558,7 +571,7 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    if button_id == 'dropdown_addfield':
+    if button_id == 'dropdown_addfield' and add_field_btn_index == 1:
         out = outputs.copy()
         opt = [x for x in options if x["value"] == value]
         if opt and opt[0] and opt[0] not in out:
@@ -597,9 +610,11 @@ def update_dropdown_presets4(dropdown_presets_options):
     Output('checklist-input3', 'options'),
     Output('checklist-input3', 'value'),
     Input('dropdown_presets3', 'value'),
-    # State('dropdown_addfield', 'options'),
+    Input('dropdown_addfield', 'value'),
+    State('checklist-input3', 'options'),
+    State('dropdown_addfield', 'options'),
 )
-def update_checklist_input3(dropdown_presets3_value):
+def update_checklist_input3(dropdown_presets3_value,dropdown_addfield_value,checklist_input3_options,dropdown_addfield_options):
     print ('update_checklist_input3')
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -611,14 +626,24 @@ def update_checklist_input3(dropdown_presets3_value):
             # print (preset_dict[preset_value]['fields'])
             return preset_dict[dropdown_presets3_value]['fields'],preset_dict[dropdown_presets3_value]['values']
         return preset_dict[0]['fields'],[]
+    elif button_id == 'dropdown_addfield' and add_field_btn_index == 3:
+        out = checklist_input3_options.copy()
+        opt = [x for x in dropdown_addfield_options if x["value"] == dropdown_addfield_value]
+        if opt and opt[0] and opt[0] not in out:
+            out.append(opt[0])
+        return out,no_update
+    raise PreventUpdate
+        
 
 @app.callback(
     Output('checklist-input4', 'options'),
     Output('checklist-input4', 'value'),
     Input('dropdown_presets4', 'value'),
-    # State('dropdown_addfield', 'options'),
+    Input('dropdown_addfield', 'value'),
+    State('checklist-input4', 'options'),
+    State('dropdown_addfield', 'options'),
 )
-def update_checklist_input4(dropdown_presets4_value):
+def update_checklist_input4(dropdown_presets4_value,dropdown_addfield_value,checklist_input4_options,dropdown_addfield_options):
     print ('update_checklist_input4')
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -630,6 +655,14 @@ def update_checklist_input4(dropdown_presets4_value):
             # print (preset_dict[preset_value]['fields'])
             return preset_dict[dropdown_presets4_value]['fields'],preset_dict[dropdown_presets4_value]['values']
         return preset_dict[0]['fields'],[]
+    elif button_id == 'dropdown_addfield' and add_field_btn_index == 4:
+        out = checklist_input4_options.copy()
+        opt = [x for x in dropdown_addfield_options if x["value"] == dropdown_addfield_value]
+        if opt and opt[0] and opt[0] not in out:
+            out.append(opt[0])
+        return out,no_update
+    raise PreventUpdate
+
 
 @app.callback(
     Output('dropdown_presets', 'options'),
@@ -716,16 +749,18 @@ def binary2panda(bytes_io: io.BytesIO):
               Output('userid_store','data'),
               Input('upload-data', 'contents'),
               Input('btn_fields_add', 'n_clicks'),
+              Input('btn_fields_add3', 'n_clicks'),
+              Input('btn_fields_add4', 'n_clicks'),
               State('interval_stream', 'disabled'),
               State('upload-data', 'filename'),
               State('upload-data', 'last_modified'))
-def open_file_function(contents,n_clicks,interval_stream_disabled, filename, date):
+def open_file_function(contents,n_clicks,n_clicks3,n_clicks4,interval_stream_disabled, filename, date):
     print ('open_file_function')
     ctx = dash.callback_context
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
-    if button_id == 'btn_fields_add' and not interval_stream_disabled:
+    if (button_id == 'btn_fields_add' or button_id == 'btn_fields_add3' or button_id == 'btn_fields_add4') and not interval_stream_disabled:
         # global recent_live_messages
         print ('size = ',len(recent_live_messages),flush=True)
         msg = recent_live_messages[-1]
