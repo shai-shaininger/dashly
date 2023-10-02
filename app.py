@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 from cmath import log
 from mmap import ACCESS_DEFAULT
-
 from numpy.lib.shape_base import split
 import dash
 import dash_core_components as dcc
@@ -16,8 +15,11 @@ import json
 import base64
 import io
 import struct
-# import uuid
-
+import threading
+import time
+from collections import deque
+import random
+import socket
 # df = None
 session_counter = 0
 max_cache_sessions = 50 #this server_side cache aimed for 1-2 users , localserver , few tabs. on other cases data corruption can happen
@@ -128,17 +130,6 @@ def generate_down_left_side():#need to thing about the name
         
     
 
-def generate_table(dataframe, max_rows=10):
-    return html.Table([
-        html.Thead(
-            html.Tr([html.Th(col) for col in dataframe.columns])
-        ),
-        html.Tbody([
-            html.Tr([
-                html.Td(dataframe.iloc[i][col]) for col in dataframe.columns
-            ]) for i in range(min(len(dataframe), max_rows))
-        ])
-    ])
 
 def generate_leftpane(dataframe=0, max_rows=100):
     return html.Div([
@@ -161,6 +152,9 @@ app.layout = html.Div([
     html.Button('Add', id='presets-add-btn', style={"float":"left"}),
     generate_preset_dropdown(),
     dcc.Upload(html.Button('Open file', id='upload-data-btn'),id='upload-data', style={'float':'right'}),
+    html.Button('Stream', id='stream_btn',style={'float':'right'}),
+    html.Div(dcc.Slider(min=100, max=1000, step=50,value=300,id='my_slider',tooltip={"placement": "bottom", "always_visible": True}),className="qwe",style={'float':'right',"width":"350px","margin-top": "10px"}),
+    dcc.Interval(id='interval_stream',interval=200,n_intervals=0,disabled=True),
     html.H4('no file selected',id='upload-data-filelabel', style={'textAlign':'center'}),
     html.Br(),
 
@@ -230,12 +224,10 @@ app.layout = html.Div([
     
 
     html.Div([
-        html.Div([
-            generate_leftpane()
+        html.Div([generate_leftpane()
         ],id="side-panel", className="three columns"),
-        html.Div([
-            generate_linegraph(),
-        ], id="page-content", style={"backgroundColor":"white"}, className="nine columns"),
+        html.Div([dcc.Graph(id='main-graph',figure={},style=CONTENT_STYLE),
+        ], id="page-content", style={"backgroundColor":"white"}, className="six columns"),
     ]),
     html.Div(id="hidden_div", style={"display":"none"}),
     dcc.Store(id="userid_store"),
@@ -337,20 +329,62 @@ def toggle_sidebar(n_clicks):
         return "three columns","nine columns"
     else:
         return "hidden columns","twelve columns"
- 
+
+
+@app.callback(
+    Output('my_slider', 'value'),
+    Input('my_slider', 'value'),
+    )
+def set_recent_live_messages_maxlen(value):
+    global recent_live_messages
+    recent_live_messages = deque(list(recent_live_messages), maxlen=value)
+    raise PreventUpdate
+
+@app.callback(
+    Output('interval_stream', 'disabled'),
+    Input('stream_btn', 'n_clicks'),
+    )
+def set_interval_stream(n_clicks):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if button_id == 'stream_btn':
+        return n_clicks%2==0
+
 @app.callback(
     Output('main-graph', 'figure'),
     Input('checklist-input', 'value'),
     Input('vlines_checklist', 'value'),
     Input('btn_legend', 'n_clicks'),
     Input('store_metadata', 'data'),
+    Input('interval_stream', 'n_intervals'),
     State('userid_store','data'),
+    State('interval_stream', 'disabled'),
     )
-def update_figure(values, vlines, legend_counter,  meta_data, jsonuserid):
-    print ('update_figure')
-    if values == []:
+def update_figure(values, vlines, legend_counter,  meta_data,n_intervals, jsonuserid,interval_stream_disabled):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if button_id == 'interval_stream' and values:
+        filtered_data = []
+        for m in list(recent_live_messages): #atomic opration to copy list to prevent deque mutate while iteration
+            d = {'timetag': m['timetag']}
+            # d += {m[value] for value in values}
+            for field in values:
+                d[field] = m[field]
+            filtered_data.append(d)
+        # filtered_data = [item[key] if key in item else None for item in data]
+        df = pd.DataFrame(filtered_data)
+        fig = px.line(df, x='timetag', y=list(df), markers=True)
+        return fig
+
+
+    if values == [] or not interval_stream_disabled:
         print ('return empty fig')
         return {}
+    print('update figure')
     userid=json.loads(jsonuserid)
     filtered_df = df_cache_per_user[userid].loc[:, values]
     temp = filtered_df#add copy
@@ -515,13 +549,14 @@ def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,va
     Input('modal3_presetAddInput', 'n_submit'),
     Input('presets-remove-btn', 'submit_n_clicks'),
     Input('upload-data-btn', 'n_clicks'),
+    Input('stream_btn', 'n_clicks'),
     Input('presets-add-btn', 'n_clicks'),
     State('modal3_presetAddInput', 'value'),
     State('dropdown_presets', 'options'),
     State('dropdown_presets', 'value'),
     State('store_metadata', 'data'),
 )
-def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, value, options, dropdown_presets_value, meta):
+def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,stream_btn_n_clicks,modal3clicks, value, options, dropdown_presets_value, meta):
     print ('dropdown_presets_update')
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -555,6 +590,10 @@ def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,modal3clicks, val
         print ('upload-data-btn')
         preset_dict,preset_opts,meta = load_preset_file(dropdown_presets_value)
         return preset_opts,no_update,no_update
+    elif button_id == 'stream_btn' and stream_btn_n_clicks==1:
+        print ('stream_btn_n_clicks=',stream_btn_n_clicks)
+        preset_dict,preset_opts,meta = load_preset_file(dropdown_presets_value)
+        return preset_opts,no_update,no_update    
     elif button_id == 'presets-add-btn':
         return no_update,True,''
     raise PreventUpdate
@@ -586,10 +625,23 @@ def binary2panda(bytes_io: io.BytesIO):
               Output('dropdown_addfield','options'),
               Output('userid_store','data'),
               Input('upload-data', 'contents'),
+              Input('btn_fields_add', 'n_clicks'),
+              State('interval_stream', 'disabled'),
               State('upload-data', 'filename'),
               State('upload-data', 'last_modified'))
-def open_file_function(contents, filename, date):
+def open_file_function(contents,n_clicks,interval_stream_disabled, filename, date):
     print ('open_file_function')
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    if button_id == 'btn_fields_add' and not interval_stream_disabled:
+        # global recent_live_messages
+        print ('size = ',len(recent_live_messages),flush=True)
+        msg = recent_live_messages[-1]
+        opts = [{"label": field,"value": field} for field in msg]
+        return "live",opts,json.dumps(0)
+
     if not contents:
         raise PreventUpdate 
     if contents is not None:
@@ -624,5 +676,58 @@ def open_file_function(contents, filename, date):
         return filename,dropdown_addfield_opts,json.dumps(idx)
         # return filename,dropdown_addfield_opts,df.to_json(date_format='iso',orient='split')
 
+def thread_loop(arg):
+    UDP_IP = "0.0.0.0"
+    UDP_PORT = 12345
+    start_time = time.time()
+    sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock1.bind((UDP_IP, UDP_PORT))
+    except Exception as e:
+        print(f"UDP bind failed: {str(e)}",flush=True)
+        return
+    global recent_live_messages
+    recent_live_messages = deque(maxlen=5*30)
+    while True:
+        try:
+            data, address = sock1.recvfrom(4096)
+            d = json.loads(data.decode('utf-8'))
+            if "timetag" not in d:
+                d["timetag"] = time.time() - start_time
+            recent_live_messages.append(d)
+            # print("dict ",d,recent_live_messages,flush=True)
+        except Exception as e:
+            print(f"while(true) fail: {str(e)}",flush=True)
+
+def thread_loop2(arg):
+    UDP_IP = "0.0.0.0"
+    UDP_PORT = 10005
+    start_time = time.time()
+    sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock1.bind((UDP_IP, UDP_PORT))
+    except Exception as e:
+        print(f"UDP bind failed: {str(e)}",flush=True)
+        return
+    global recent_live_messages
+    recent_live_messages = deque(maxlen=5*30)
+    while True:
+        try:
+            data, address = sock1.recvfrom(4096)
+            d = json.loads(data.decode('utf-8'))
+            # print (d[0]["fields"],flush=True)
+            if "timetag" not in d[0]["fields"]:
+                d[0]["fields"]["timetag"] = time.time() - start_time
+            recent_live_messages.append(d[0]["fields"])
+            # print("dict ",d,recent_live_messages,flush=True)
+        except Exception as e:
+            print(f"while(true) fail: {str(e)}",flush=True)
+
+
+
+
 if __name__ == '__main__':
-    app.run_server(host='0.0.0.0',port=8050, debug=True)
+    t1 = threading.Thread(target=thread_loop2, args=(1,))
+    # t1.daemon = True
+    t1.start()
+    app.run_server(host='127.0.0.1',port=8050, debug=False)

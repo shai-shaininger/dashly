@@ -1,7 +1,8 @@
 #!/bin/bash
-docker run --rm -p 8050:8050 -v $PWD:/code --name dashly-server dash-images python app.py
+docker run -it --rm --net=host  -v $PWD:/code --name dashly-server dash-images python app.py
 exit 0
-
+docker run --rm --net=host  -v $PWD:/code --name dashly-server dash-images python app.py
+-p 9955:9955/udp
 
 docker container stop dashly-server
 docker container prune
