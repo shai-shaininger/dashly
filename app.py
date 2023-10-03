@@ -1,13 +1,12 @@
 #!/usr/bin/python3
 from cmath import log
 from mmap import ACCESS_DEFAULT
+from os import ST_NODEV
 from numpy.lib.shape_base import split
-from dash import dash,dcc,dash_table,html,Input, Output, ctx, callback,State
+from dash import Dash,dcc,dash_table,html,Input, Output, ctx, callback,State,no_update
 import dash_bootstrap_components as dbc
-
-# from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-from dash.dash import no_update
+
 
 import pandas as pd
 import plotly.express as px
@@ -50,6 +49,15 @@ CONTENT_STYLE3 = {
     'background-color':"#EEE",
 }
 
+STYLE_GREEN = {
+    'background-color': 'green',
+    'color': 'white',
+}
+
+STYLE_RED = {
+    'background-color': 'red',
+    'color': 'white',
+}
 
 def generate_table(dataframe, max_rows=10):
     return html.Table([
@@ -153,7 +161,7 @@ def generate_leftpane(dataframe=0, max_rows=100):
         html.Button('preset Save', id='btn_preset_save', n_clicks=0, className="button-primary"),
         ])
 
-app = dash.Dash(__name__) # load all asset dir files (*.js , *.css)
+app = Dash(__name__) # load all asset dir files (*.js , *.css)
 app.layout = html.Div([
     html.Button('sidebar', id='sidebar-toggle', n_clicks=0, style={"float":"left", "margin-right": "10px"}),
     dcc.ConfirmDialogProvider(children=html.Button('Remove',style={"float":"left"}),id='presets-remove-btn',
@@ -162,7 +170,7 @@ app.layout = html.Div([
     generate_preset_dropdown(),
     dcc.Upload(html.Button('Open file', id='upload-data-btn'),id='upload-data', style={'float':'right'}),
     html.Button('Stream', id='stream_btn',style={'float':'right'}),
-    html.Div(dcc.Slider(min=100, max=1000, step=50,value=300,id='my_slider',tooltip={"placement": "bottom", "always_visible": True}),className="qwe",style={'float':'right',"width":"350px","margin-top": "10px"}),
+    html.Div(dcc.Slider(min=100, max=1000, step=50,value=300,id='my_slider',marks=None,tooltip={"placement": "bottom", "always_visible": True}),className="qwe",style={'float':'right',"width":"350px","margin-top": "10px"}),
     dcc.Interval(id='interval_stream',interval=200,n_intervals=0,disabled=True),
     html.H4('no file selected',id='upload-data-filelabel', style={'textAlign':'center'}),
     html.Br(),
@@ -262,7 +270,13 @@ app.layout = html.Div([
 
         html.Div([dcc.Graph(id='main-graph4',figure={},style=CONTENT_STYLE2)], id="page-content4", style=CONTENT_STYLE2, className="five columns"),        
     ]),
-
+    html.Div([
+        html.Button('update table', id='btn_table1', n_clicks=0, className="button",style={}),
+        html.Button('reset fields', id='btn_table2', n_clicks=0, className="button"),
+        html.Button('all fields', id='btn_table3', n_clicks=0, className="button"),
+        dcc.Dropdown(id='table_dropdown',options=['timetag',],value=['timetag'],multi=True),
+        dash_table.DataTable(id='table1',data=[{}], columns=None,style_cell={'textAlign': 'left'},),
+    ],style={'margin-top':'184vh'}),
     html.Div(id="hidden_div", style={"display":"none"}),
     dcc.Store(id="userid_store"),
     dcc.Store(id='store_metadata', data= {"value": {"scaling": 1.0, "offset": 0.0}}),
@@ -296,6 +310,57 @@ def vlines_list(addval,delval,gclick_data,listopt,listval):
         listopt.append({'label': pointx, 'value': pointx})
         listval.append(pointx)
         return listopt,listval
+    raise PreventUpdate
+
+@app.callback(
+    Output('table_dropdown', 'options'), 
+    Output('table_dropdown', 'value'),
+    Input('btn_table2','n_clicks') ,
+    Input('btn_table3','n_clicks') ,
+    )
+def update_table_dropdown_options(btn_table2_n_clicks,btn_table3_n_clicks):
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered_id
+    if button_id == 'btn_table2' and len(recent_live_messages):
+        options = [m for m in recent_live_messages[-1]]
+        value = ['timetag']
+        return options,value
+    if button_id == 'btn_table3' and len(recent_live_messages):
+        options = [m for m in recent_live_messages[-1]]
+        value = options
+        return options,value
+    raise PreventUpdate
+
+@app.callback(
+    Output('btn_table1', 'style'), 
+    Input('btn_table1','n_clicks') ,
+    State('btn_table1', 'style'), 
+    )
+def update_btn_table1_style(clicks,style):
+    if clicks%2:
+        style['background-color'] = 'green'
+        style['color'] = 'white'
+    else:
+        style['background-color'] = 'white'
+        style['color'] = 'black'
+    return style
+
+@app.callback(
+    Output('table1', 'data'), 
+    Output('table1', 'columns'),
+    Input('interval_stream','n_intervals') ,
+    State('btn_table1', 'n_clicks'),
+    State('table_dropdown','value')
+    )
+def update_table1(interval_stream_n_intervals,btn_table1_n_clicks,table_dropdown_value):
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered_id
+    if button_id == 'interval_stream' and btn_table1_n_clicks%2:
+        tail = list(recent_live_messages)[-20:]
+        column = [{"name": v, "id": v} for v in table_dropdown_value]
+        return tail,column
     raise PreventUpdate
 
 @app.callback(
@@ -388,15 +453,26 @@ def set_recent_live_messages_maxlen(value):
 
 @app.callback(
     Output('interval_stream', 'disabled'),
+    Output('stream_btn', 'style'),
     Input('stream_btn', 'n_clicks'),
+    State('stream_btn', 'style'),
     )
-def set_interval_stream(n_clicks):
+def set_interval_stream(n_clicks,style):
     # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered_id
     if button_id == 'stream_btn':
-        return n_clicks%2==0
+        disabled = False
+        if n_clicks%2:
+            style['background-color'] = 'green'
+            style['color'] = 'white'
+            disabled = False
+        else:
+            style['background-color'] = 'white'
+            style['color'] = 'black'
+            disabled = True
+        return disabled,style
 
 @app.callback(
     Output('main-graph', 'figure'),
@@ -419,7 +495,7 @@ def update_figure(values, vlines, legend_counter,  meta_data,n_intervals,checkli
     button_id = ctx.triggered_id
     if button_id == 'interval_stream':
         fig={};fig3={};fig4={}
-        df = pd.DataFrame(recent_live_messages)
+        df = pd.DataFrame(list(recent_live_messages))
         if values:
             values.append("timetag")
             fig = px.line(df, x='timetag', y=list(values), markers=True)
@@ -855,4 +931,4 @@ if __name__ == '__main__':
     t1 = threading.Thread(target=thread_loop, args=(1,))
     # t1.daemon = True
     t1.start()
-    app.run_server(host='127.0.0.1',port=8050, debug=False)
+    app.run(host='127.0.0.1',port=8050, debug=False)
