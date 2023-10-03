@@ -2,13 +2,13 @@
 from cmath import log
 from mmap import ACCESS_DEFAULT
 from numpy.lib.shape_base import split
-import dash
-import dash_core_components as dcc
+from dash import dash,dcc,dash_table,html,Input, Output, ctx, callback,State
 import dash_bootstrap_components as dbc
-import dash_html_components as html
-from dash.dependencies import Input, Output, State
+
+# from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from dash.dash import no_update
+
 import pandas as pd
 import plotly.express as px
 import json
@@ -279,10 +279,10 @@ app.layout = html.Div([
     )
 def vlines_list(addval,delval,gclick_data,listopt,listval):
     print ('vlines_list')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'modal4_vlineAddInput':
         listopt.append({'label': addval, 'value': addval})
         listval.append(addval)
@@ -304,10 +304,10 @@ def vlines_list(addval,delval,gclick_data,listopt,listval):
     )
 def btn_vline_edit(n_clicks):
     print ('btn_vline_edit')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'btn_vline_edit':
         return True
     raise PreventUpdate
@@ -320,10 +320,10 @@ def btn_vline_edit(n_clicks):
     )
 def btn_fields_add_press(n_clicks,btn_fields_add3_click,btn_fields_add4_click):
     print ('btn_fields_add_press')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     global add_field_btn_index
     if button_id == 'btn_fields_add':
         add_field_btn_index = 1
@@ -353,10 +353,10 @@ def modal1_write_checklist(options):
 
 def btn_fields_remove_press(n_clicks,modal1closeclicks):
     print ('btn_fields_remove_press')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'btn_fields_remove':
         return True,[]
     elif button_id == 'modal1-delete-btn':
@@ -391,10 +391,10 @@ def set_recent_live_messages_maxlen(value):
     Input('stream_btn', 'n_clicks'),
     )
 def set_interval_stream(n_clicks):
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'stream_btn':
         return n_clicks%2==0
 
@@ -413,10 +413,10 @@ def set_interval_stream(n_clicks):
     State('interval_stream', 'disabled'),
     )
 def update_figure(values, vlines, legend_counter,  meta_data,n_intervals,checklist_input3_value,checklist_input4_value, jsonuserid,interval_stream_disabled):
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'interval_stream':
         fig={};fig3={};fig4={}
         df = pd.DataFrame(recent_live_messages)
@@ -495,10 +495,10 @@ def save_preset(btn_preset_save_clicks,checklist_options,checklist_values,dropdo
 )
 def update_checklist_meta(scaling, offset, options, dropdown_presets_value, value, meta_data):
     print("update_checklist_meta")
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    trigger_id = ctx.triggered_id
     if trigger_id == 'checklist-input' or trigger_id == 'dropdown_presets':
         a,b, meta_data = load_preset_file(dropdown_presets_value)
     meta_data_list = list(meta_data.keys())
@@ -567,10 +567,10 @@ def update_dropdown_addfield2(n_clicks, value, vScanling, vOffset):
 )
 def update_checklist_input(value,preset_value,modal1btnclicks,options,outputs,values,modal1Value, dropdown_presets_value, meta):
     print ('update_checklist_input')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'dropdown_addfield' and add_field_btn_index == 1:
         out = outputs.copy()
         opt = [x for x in options if x["value"] == value]
@@ -616,10 +616,10 @@ def update_dropdown_presets4(dropdown_presets_options):
 )
 def update_checklist_input3(dropdown_presets3_value,dropdown_addfield_value,checklist_input3_options,dropdown_addfield_options):
     print ('update_checklist_input3')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'dropdown_presets3':
         preset_dict,preset_opts,meta = load_preset_file(dropdown_presets3_value)
         if (preset_dict[dropdown_presets3_value]['fields']):
@@ -645,10 +645,10 @@ def update_checklist_input3(dropdown_presets3_value,dropdown_addfield_value,chec
 )
 def update_checklist_input4(dropdown_presets4_value,dropdown_addfield_value,checklist_input4_options,dropdown_addfield_options):
     print ('update_checklist_input4')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'dropdown_presets4':
         preset_dict,preset_opts,meta = load_preset_file(dropdown_presets4_value)
         if (preset_dict[dropdown_presets4_value]['fields']):
@@ -681,10 +681,10 @@ def update_checklist_input4(dropdown_presets4_value,dropdown_addfield_value,chec
 )
 def dropdown_presets_update(n_submit, n_clicks,load_btn_clicks,stream_btn_n_clicks,modal3clicks, value, options, dropdown_presets_value, meta):
     print ('dropdown_presets_update')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if button_id == 'modal3_presetAddInput':
         if value == None or value=="":
             raise PreventUpdate      
@@ -756,10 +756,10 @@ def binary2panda(bytes_io: io.BytesIO):
               State('upload-data', 'last_modified'))
 def open_file_function(contents,n_clicks,n_clicks3,n_clicks4,interval_stream_disabled, filename, date):
     print ('open_file_function')
-    ctx = dash.callback_context
+    # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
-    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    button_id = ctx.triggered_id
     if (button_id == 'btn_fields_add' or button_id == 'btn_fields_add3' or button_id == 'btn_fields_add4') and not interval_stream_disabled:
         # global recent_live_messages
         print ('size = ',len(recent_live_messages),flush=True)
