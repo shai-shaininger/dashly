@@ -1,0 +1,42 @@
+[
+    {
+        "label": "empty",
+        "value": "timetag,"
+    },
+    {
+        "label": "preset 1",
+        "value": "timetag,field_1,field_43,field_3,field_6"
+    },
+    {
+        "label": "preset 2",
+        "value": "timetag,field_2,field_29,field_30,80024434789"
+    },
+    {
+        "label": "preset 3",
+        "value": "timetag,field_3,field_30"
+    },
+    {
+        "label": "preset 4",
+        "value": "timetag,field_4,field_5,field_6,field_7,field_8,81940507764"
+    },
+    {
+        "label": "preset 5",
+        "value": "timetag,-375384072743717230"
+    },
+    {
+        "label": "preset 6",
+        "value": "timetag,8683101703550359304"
+    },
+    {
+        "label": "preset 7",
+        "value": "timetag,-3863525075960931799"
+    },
+    {
+        "label": "preset 8",
+        "value": "timetag,-4660636035785687104"
+    },
+    {
+        "label": "preset 9",
+        "value": "timetag,-7301709118558672778"
+    }
+]

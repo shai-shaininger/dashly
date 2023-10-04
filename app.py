@@ -49,15 +49,15 @@ CONTENT_STYLE3 = {
     'background-color':"#EEE",
 }
 
-STYLE_GREEN = {
-    'background-color': 'green',
-    'color': 'white',
-}
+# STYLE_GREEN = {
+#     'background-color': 'green',
+#     'color': 'white',
+# }
 
-STYLE_RED = {
-    'background-color': 'red',
-    'color': 'white',
-}
+# STYLE_RED = {
+#     'background-color': 'red',
+#     'color': 'white',
+# }
 
 def generate_table(dataframe, max_rows=10):
     return html.Table([
@@ -271,9 +271,13 @@ app.layout = html.Div([
         html.Div([dcc.Graph(id='main-graph4',figure={},style=CONTENT_STYLE2)], id="page-content4", style=CONTENT_STYLE2, className="five columns"),        
     ]),
     html.Div([
+        dcc.Interval(id='interval_table',interval=200,n_intervals=0,disabled=True),
         html.Button('update table', id='btn_table1', n_clicks=0, className="button",style={}),
         html.Button('reset fields', id='btn_table2', n_clicks=0, className="button"),
-        html.Button('all fields', id='btn_table3', n_clicks=0, className="button"),
+        html.Button('all fields', id='btn_table3', n_clicks=0, className="button",style={'margin-right':'50px'}),
+        html.Div([dcc.Dropdown(id='table_presets',options=[],value=None,),],id='table_presets_wrapper',style={"width": "400px","display":"inline-block","vertical-align": "bottom"}),
+        html.Button('save preset', id='btn_table4', n_clicks=0, className="button",style={'margin-right':'50px'}),
+        dcc.Input(id="input_new_preset", type='text',placeholder="add new preset",debounce=True,style={"width": "400px","display":"inline-block","vertical-align": "bottom"}),
         dcc.Dropdown(id='table_dropdown',options=['timetag',],value=['timetag'],multi=True),
         dash_table.DataTable(id='table1',data=[{}], columns=None,style_cell={'textAlign': 'left'},),
     ],style={'margin-top':'184vh'}),
@@ -313,12 +317,54 @@ def vlines_list(addval,delval,gclick_data,listopt,listval):
     raise PreventUpdate
 
 @app.callback(
+    Output('table_presets', 'options'), 
+    Input('table_presets_wrapper','n_clicks') ,
+    )
+def update_table_presets_options(n_clicks):
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered_id
+    if button_id == 'table_presets_wrapper' :
+        print('update_table_presets_options',flush=True)
+        options=[]
+        with open('table_presets.json') as json_file:
+            options = json.load(json_file)
+        return options
+    raise PreventUpdate
+
+@app.callback(
+    # Output('btn_table4', 'style'), 
+    Output('table_presets_wrapper', 'n_clicks'),
+    Input('btn_table4','n_clicks'),
+    State('table_dropdown','value'),
+    State('table_presets','value'),
+    State('table_presets_wrapper', 'n_clicks'),
+    )
+def save_preset(n_clicks,value,preset_value,wrapper_clicks):
+    if not ctx.triggered:
+        raise PreventUpdate
+    button_id = ctx.triggered_id
+    if button_id == 'btn_table4':
+        with open('table_presets.json','r+') as json_file:
+            data = json.load(json_file)
+            for entry in data:
+                if entry['value'] == preset_value:
+                    value.append(str(random.randint(1, 99999999999)))
+                    entry['value'] = ','.join(value) # make entry['value'] unique even if fields are not
+            json_file.seek(0)
+            json.dump(data, json_file, indent=4)
+            json_file.truncate() #delete any remaining chars when reducing file size
+            return wrapper_clicks+1
+    raise PreventUpdate
+
+@app.callback(
     Output('table_dropdown', 'options'), 
     Output('table_dropdown', 'value'),
     Input('btn_table2','n_clicks') ,
     Input('btn_table3','n_clicks') ,
+    Input('table_presets','value'),
     )
-def update_table_dropdown_options(btn_table2_n_clicks,btn_table3_n_clicks):
+def update_table_dropdown_options(btn_table2_n_clicks,btn_table3_n_clicks,table_presets_value):
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered_id
@@ -330,34 +376,43 @@ def update_table_dropdown_options(btn_table2_n_clicks,btn_table3_n_clicks):
         options = [m for m in recent_live_messages[-1]]
         value = options
         return options,value
+    if button_id == 'table_presets' and len(recent_live_messages):
+        options = [m for m in recent_live_messages[-1]]
+        value = table_presets_value.split(',')
+        return options,value
+
     raise PreventUpdate
 
 @app.callback(
-    Output('btn_table1', 'style'), 
+    Output('btn_table1', 'style'),
+    Output('interval_table', 'disabled'), 
     Input('btn_table1','n_clicks') ,
     State('btn_table1', 'style'), 
     )
 def update_btn_table1_style(clicks,style):
+    interval_table_disabled = None
     if clicks%2:
         style['background-color'] = 'green'
         style['color'] = 'white'
+        interval_table_disabled = False
     else:
         style['background-color'] = 'white'
         style['color'] = 'black'
-    return style
+        interval_table_disabled = True
+    return style,interval_table_disabled
 
 @app.callback(
     Output('table1', 'data'), 
     Output('table1', 'columns'),
-    Input('interval_stream','n_intervals') ,
+    Input('interval_table','n_intervals') ,
     State('btn_table1', 'n_clicks'),
     State('table_dropdown','value')
     )
-def update_table1(interval_stream_n_intervals,btn_table1_n_clicks,table_dropdown_value):
+def update_table1(interval_table_n_intervals,btn_table1_n_clicks,table_dropdown_value):
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered_id
-    if button_id == 'interval_stream' and btn_table1_n_clicks%2:
+    if button_id == 'interval_table':
         tail = list(recent_live_messages)[-20:]
         column = [{"name": v, "id": v} for v in table_dropdown_value]
         return tail,column
@@ -376,6 +431,22 @@ def btn_vline_edit(n_clicks):
     if button_id == 'btn_vline_edit':
         return True
     raise PreventUpdate
+
+@callback(
+    Output("input_new_preset", "value"),
+    Input("input_new_preset", "n_submit"),
+    State("input_new_preset", "value"),
+)
+def input_new_preset(n_submit,value):
+    if not value:
+        raise PreventUpdate
+    with open('table_presets.json','r+') as json_file:
+        data = json.load(json_file)
+        data.append({"label": value,"value": "timetag,{}".format(str(hash(value)))})
+        json_file.seek(0)
+        json.dump(data, json_file, indent=4)
+        json_file.truncate() #delete any remaining chars when reducing file size
+    return ''
 
 @app.callback(
     Output('modal2', 'is_open'), 
