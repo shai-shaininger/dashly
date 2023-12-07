@@ -971,8 +971,13 @@ def thread_loop(arg):
         except Exception as e:
             print(f"while(true) fail: {str(e)}",flush=True)
 
+# group = socket.inet_aton('224.0.2.2')
+# mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+# sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+# sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
 def thread_loop2(arg):
-    UDP_IP = "0.0.0.0"
+    UDP_IP = "234.0.0.1"
     UDP_PORT = 10005
     start_time = time.time()
     sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -981,6 +986,11 @@ def thread_loop2(arg):
     except Exception as e:
         print(f"UDP bind failed: {str(e)}",flush=True)
         return
+    group = socket.inet_aton(UDP_IP)
+    mreq = struct.pack('4sL', group, socket.INADDR_ANY)
+    sock1.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+    sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     global recent_live_messages
     recent_live_messages = deque(maxlen=5*30)
     while True:
@@ -999,7 +1009,7 @@ def thread_loop2(arg):
 
 
 if __name__ == '__main__':
-    t1 = threading.Thread(target=thread_loop, args=(1,))
+    t1 = threading.Thread(target=thread_loop2, args=(1,))
     # t1.daemon = True
     t1.start()
     app.run(host='127.0.0.1',port=8050, debug=False)
