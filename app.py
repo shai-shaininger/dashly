@@ -368,16 +368,16 @@ def update_table_dropdown_options(btn_table2_n_clicks,btn_table3_n_clicks,table_
     if not ctx.triggered:
         raise PreventUpdate
     button_id = ctx.triggered_id
-    if button_id == 'btn_table2' and len(recent_live_messages):
-        options = [m for m in recent_live_messages[-1]]
+    if button_id == 'btn_table2' and len(recent_live_messages_dict):
+        options = [key for adeque in recent_live_messages_dict.values() for key in adeque[-1]]
         value = ['timetag']
         return options,value
-    if button_id == 'btn_table3' and len(recent_live_messages):
-        options = [m for m in recent_live_messages[-1]]
+    if button_id == 'btn_table3' and len(recent_live_messages_dict):
+        options = [key for adeque in recent_live_messages_dict.values() for key in adeque[-1]]
         value = options
         return options,value
-    if button_id == 'table_presets' and len(recent_live_messages):
-        options = [m for m in recent_live_messages[-1]]
+    if button_id == 'table_presets' and len(recent_live_messages_dict):
+        options = [key for adeque in recent_live_messages_dict.values() for key in adeque[-1]]
         value = table_presets_value.split(',')
         return options,value
 
@@ -413,7 +413,9 @@ def update_table1(interval_table_n_intervals,btn_table1_n_clicks,table_dropdown_
         raise PreventUpdate
     button_id = ctx.triggered_id
     if button_id == 'interval_table':
-        tail = list(recent_live_messages)[-20:]
+        tail = [{}]
+        for adeque in recent_live_messages_dict:
+            tail[0].update(recent_live_messages_dict[adeque][-1])
         column = [{"name": v, "id": v} for v in table_dropdown_value]
         return tail,column
     raise PreventUpdate
@@ -518,8 +520,9 @@ def toggle_sidebar(n_clicks):
     Input('my_slider', 'value'),
     )
 def set_recent_live_messages_maxlen(value):
-    global recent_live_messages
-    recent_live_messages = deque(list(recent_live_messages), maxlen=value)
+    global recent_live_messages_dict
+    for title in recent_live_messages_dict:
+        recent_live_messages_dict[title] = deque(list(recent_live_messages_dict[title]), maxlen=value)
     raise PreventUpdate
 
 @app.callback(
@@ -566,7 +569,10 @@ def update_figure(values, vlines, legend_counter,  meta_data,n_intervals,checkli
     button_id = ctx.triggered_id
     if button_id == 'interval_stream':
         fig={};fig3={};fig4={}
-        df = pd.DataFrame(list(recent_live_messages))
+        data = []
+        for title in recent_live_messages_dict:
+            data.extend(list(recent_live_messages_dict[title]))
+        df = pd.DataFrame(data)
         if values:
             values.append("timetag")
             fig = px.line(df, x='timetag', y=list(values), markers=True)
@@ -908,9 +914,9 @@ def open_file_function(contents,n_clicks,n_clicks3,n_clicks4,interval_stream_dis
         raise PreventUpdate
     button_id = ctx.triggered_id
     if (button_id == 'btn_fields_add' or button_id == 'btn_fields_add3' or button_id == 'btn_fields_add4') and not interval_stream_disabled:
-        # global recent_live_messages
-        print ('size = ',len(recent_live_messages),flush=True)
-        msg = recent_live_messages[-1]
+        msg = {}
+        for title in recent_live_messages_dict:
+            msg.update(recent_live_messages_dict[title][-1])
         opts = [{"label": field,"value": field} for field in msg]
         return "live",opts,json.dumps(0)
 
@@ -949,34 +955,6 @@ def open_file_function(contents,n_clicks,n_clicks3,n_clicks4,interval_stream_dis
         # return filename,dropdown_addfield_opts,df.to_json(date_format='iso',orient='split')
 
 def thread_loop(arg):
-    UDP_IP = "0.0.0.0"
-    UDP_PORT = 12345
-    start_time = time.time()
-    sock1 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        sock1.bind((UDP_IP, UDP_PORT))
-    except Exception as e:
-        print(f"UDP bind failed: {str(e)}",flush=True)
-        return
-    global recent_live_messages
-    recent_live_messages = deque(maxlen=5*30)
-    while True:
-        try:
-            data, address = sock1.recvfrom(4096)
-            d = json.loads(data.decode('utf-8'))
-            if "timetag" not in d:
-                d["timetag"] = time.time() - start_time
-            recent_live_messages.append(d)
-            # print("dict ",d,recent_live_messages,flush=True)
-        except Exception as e:
-            print(f"while(true) fail: {str(e)}",flush=True)
-
-# group = socket.inet_aton('224.0.2.2')
-# mreq = struct.pack('4sL', group, socket.INADDR_ANY)
-# sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-# sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-def thread_loop2(arg):
     UDP_IP = "234.0.0.1"
     UDP_PORT = 10005
     start_time = time.time()
@@ -991,17 +969,18 @@ def thread_loop2(arg):
     sock1.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
     sock1.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    global recent_live_messages
-    recent_live_messages = deque(maxlen=5*30)
+    global recent_live_messages_dict
+    recent_live_messages_dict = {}
     while True:
         try:
             data, address = sock1.recvfrom(4096)
             d = json.loads(data.decode('utf-8'))
             # print (d[0]["fields"],flush=True)
+            if d[0]['title'] not in recent_live_messages_dict:
+                recent_live_messages_dict[d[0]['title']] = deque(maxlen=5*30)
             if "timetag" not in d[0]["fields"]:
                 d[0]["fields"]["timetag"] = time.time() - start_time
-            recent_live_messages.append(d[0]["fields"])
-            # print("dict ",d,recent_live_messages,flush=True)
+            recent_live_messages_dict[d[0]['title']].append(d[0]["fields"])
         except Exception as e:
             print(f"while(true) fail: {str(e)}",flush=True)
 
@@ -1009,7 +988,7 @@ def thread_loop2(arg):
 
 
 if __name__ == '__main__':
-    t1 = threading.Thread(target=thread_loop2, args=(1,))
+    t1 = threading.Thread(target=thread_loop, args=(1,))
     # t1.daemon = True
     t1.start()
     app.run(host='127.0.0.1',port=8050, debug=False)
