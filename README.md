@@ -12,13 +12,13 @@ csv visual plotter using python dash, inspired by px4/flightplot java utility
 #cd <repo directory>
 
 #needed once to build image from Dockerfile
-docker build ./ -t dash-images
+docker build ./ -t dash-images.3.10
 
 #run 
 ./run.sh
 
 #or run
-docker run --rm -p 8050:8050 -v $PWD:/code --name dashly-server dash-images python app.py
+docker run --rm -p 8050:8050 -v $PWD:/code --name dashly-server dash-images.3.10 python app.py
 
 #gui frontend
 firefox 127.0.0.1:8050
