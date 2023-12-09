@@ -279,7 +279,7 @@ app.layout = html.Div([
         html.Button('save preset', id='btn_table4', n_clicks=0, className="button",style={'margin-right':'50px'}),
         dcc.Input(id="input_new_preset", type='text',placeholder="add new preset",debounce=True,style={"width": "400px","display":"inline-block","vertical-align": "bottom"}),
         dcc.Dropdown(id='table_dropdown',options=['timetag',],value=['timetag'],multi=True),
-        dash_table.DataTable(id='table1',data=[{}], columns=None,style_cell={'textAlign': 'left'},),
+        dash_table.DataTable(id='table1',data=[{}], columns=None,style_cell={'textAlign': 'left',},fill_width=False),
     ],style={'margin-top':'184vh'}),
     html.Div(id="hidden_div", style={"display":"none"}),
     dcc.Store(id="userid_store"),
@@ -413,11 +413,33 @@ def update_table1(interval_table_n_intervals,btn_table1_n_clicks,table_dropdown_
         raise PreventUpdate
     button_id = ctx.triggered_id
     if button_id == 'interval_table':
-        tail = [{}]
-        for adeque in recent_live_messages_dict:
-            tail[0].update(recent_live_messages_dict[adeque][-1])
-        column = [{"name": v, "id": v} for v in table_dropdown_value]
-        return tail,column
+        # determine the number of rows and cols of the table based on the total items
+        num_columns = min(max(2, int(len(table_dropdown_value)**0.5)), 4)
+        num_rows = int(len(table_dropdown_value)/num_columns)+1
+        column=[]
+        data=[]
+        row={}
+        name_counter = -1
+        for i in range(num_columns):
+            column.append({"name": '_____________name__________', "id": 'col_{}'.format(2*i)})
+            column.append({"name": 'value', "id": 'col_{}'.format(2*i+1)})
+        for irow in range(num_rows):
+            row={}
+            for icol in range(num_columns):
+                # check if fields list has enough values to populate this cell location
+                if icol*num_rows+irow < len(table_dropdown_value):
+                    name = table_dropdown_value[icol*num_rows+irow]
+                    nvalue = None
+                    #search name in database and get its value
+                    for adeque in recent_live_messages_dict:
+                        if name in recent_live_messages_dict[adeque][-1]:
+                            nvalue = recent_live_messages_dict[adeque][-1][name]
+                            break;
+                    # append to row
+                    row['col_{}'.format(icol*2)] = name
+                    row['col_{}'.format(icol*2+1)] = nvalue
+            data.append(row)
+        return data,column
     raise PreventUpdate
 
 @app.callback(
