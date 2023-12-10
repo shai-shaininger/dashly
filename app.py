@@ -170,7 +170,7 @@ app.layout = html.Div([
     generate_preset_dropdown(),
     dcc.Upload(html.Button('Open file', id='upload-data-btn'),id='upload-data', style={'float':'right'}),
     html.Button('Stream', id='stream_btn',style={'float':'right'}),
-    html.Div(dcc.Slider(min=100, max=1000, step=50,value=300,id='my_slider',marks=None,tooltip={"placement": "bottom", "always_visible": True}),className="qwe",style={'float':'right',"width":"350px","margin-top": "10px"}),
+    html.Div(dcc.Slider(min=10, max=60, step=1,value=30,id='my_slider',marks=None,tooltip={"placement": "bottom", "always_visible": True}),className="qwe",style={'float':'right',"width":"350px","margin-top": "10px"}),
     dcc.Interval(id='interval_stream',interval=200,n_intervals=0,disabled=True),
     html.H4('no file selected',id='upload-data-filelabel', style={'textAlign':'center'}),
     html.Br(),
@@ -542,9 +542,9 @@ def toggle_sidebar(n_clicks):
     Input('my_slider', 'value'),
     )
 def set_recent_live_messages_maxlen(value):
-    global recent_live_messages_dict
-    for title in recent_live_messages_dict:
-        recent_live_messages_dict[title] = deque(list(recent_live_messages_dict[title]), maxlen=value)
+    # global recent_live_messages_dict
+    # for title in recent_live_messages_dict:
+    #     recent_live_messages_dict[title] = deque(list(recent_live_messages_dict[title]), maxlen=value)
     raise PreventUpdate
 
 @app.callback(
@@ -583,8 +583,9 @@ def set_interval_stream(n_clicks,style):
     Input('checklist-input4', 'value'),
     State('userid_store','data'),
     State('interval_stream', 'disabled'),
+    State('my_slider','value'),
     )
-def update_figure(values, vlines, legend_counter,  meta_data,n_intervals,checklist_input3_value,checklist_input4_value, jsonuserid,interval_stream_disabled):
+def update_figure(values, vlines, legend_counter,  meta_data,n_intervals,checklist_input3_value,checklist_input4_value, jsonuserid,interval_stream_disabled,slider_value):
     # ctx = callback_context
     if not ctx.triggered:
         raise PreventUpdate
@@ -598,14 +599,17 @@ def update_figure(values, vlines, legend_counter,  meta_data,n_intervals,checkli
         if values:
             values.append("timetag")
             fig = px.line(df, x='timetag', y=list(values), markers=True)
+            fig.update_xaxes(range=[df['timetag'].iloc[-1]-slider_value, df['timetag'].iloc[-1]])
         if checklist_input3_value:
             checklist_input3_value.append("timetag")
             fig3 = px.line(df, x="timetag", y=list(checklist_input3_value), markers=True)
             fig3.layout.update(showlegend=False,margin=dict(l=0, r=0, t=0, b=0))
+            fig3.update_xaxes(range=[df['timetag'].iloc[-1]-slider_value, df['timetag'].iloc[-1]])
         if checklist_input4_value:
             checklist_input4_value.append("timetag")
             fig4 = px.line(df, x="timetag", y=list(checklist_input4_value), markers=True)
             fig4.layout.update(showlegend=False,margin=dict(l=0, r=0, t=0, b=0))
+            fig4.update_xaxes(range=[df['timetag'].iloc[-1]-slider_value, df['timetag'].iloc[-1]])
         return fig,fig3,fig4
 
     if values == [] or not interval_stream_disabled:
@@ -999,7 +1003,7 @@ def thread_loop(arg):
             d = json.loads(data.decode('utf-8'))
             # print (d[0]["fields"],flush=True)
             if d[0]['title'] not in recent_live_messages_dict:
-                recent_live_messages_dict[d[0]['title']] = deque(maxlen=5*30)
+                recent_live_messages_dict[d[0]['title']] = deque(maxlen=2048)
             if "timetag" not in d[0]["fields"]:
                 d[0]["fields"]["timetag"] = time.time() - start_time
             recent_live_messages_dict[d[0]['title']].append(d[0]["fields"])
