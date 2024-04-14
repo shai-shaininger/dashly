@@ -911,8 +911,9 @@ def binary2panda(bytes_io: io.BytesIO):
 
     #slice data to complete rows
     row_bytes_len = len(fields)*4
-    print ("slicing binary file to complete rows ",len(data)%row_bytes_len," bytes")
-    data = data[:-(len(data)%row_bytes_len)]
+    if len(data) % row_bytes_len != 0:
+        print ("slicing binary file to complete rows ",len(data)%row_bytes_len," bytes")
+        data = data[:-(len(data)%row_bytes_len)]
 
     # Calculate number of rows and reshape data into a 2D array
     num_rows = len(data) // (len(fields) * 4)
